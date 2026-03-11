@@ -1,7 +1,8 @@
-import { access, mkdir, readdir, stat } from "fs/promises";
+import { access, mkdir, readdir, readFile } from "fs/promises";
 import { fileURLToPath } from 'url';
 import path from "path";
-import { createReadStream, createWriteStream } from 'fs';
+import { createWriteStream } from 'fs';
+import { Readable } from 'stream';
 import { createBrotliCompress } from "zlib";
 
 const ERROR_TEXT = "FS operation failed";
@@ -33,40 +34,25 @@ const compressDir = async () => {
         }
 
         if (entry.isFile()) {
-          files.push(fullPath);
+          const content = await readFile(fullPath);
+
+          files.push({
+            path: path.relative(sourcePath, fullPath),
+            content: content.toString("base64"),
+          });
         }
       }
     };
 
     await scan(sourcePath);
 
+    const json = JSON.stringify({ files });
+    const input = Readable.from([json]);
+
     const brotli = createBrotliCompress();
     const output = createWriteStream(archivePath);
 
-    brotli.pipe(output);
-
-    for (const file of files) {
-      const relative = path.relative(sourcePath, file);
-      const info = await stat(file);
-
-      brotli.write(`PATH:${relative}\n`);
-      brotli.write(`SIZE:${info.size}\n`);
-
-      await new Promise((resolve, reject) => {
-        const stream = createReadStream(file);
-
-        stream.on("end", () => {
-          brotli.write("\n");
-          resolve();
-        });
-
-        stream.on("error", reject);
-
-        stream.pipe(brotli, { end: false });
-      });
-    }
-
-    brotli.end();
+    input.pipe(brotli).pipe(output);
   } catch (err) {
     console.log('err', err);
   }
