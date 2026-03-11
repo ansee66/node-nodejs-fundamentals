@@ -12,11 +12,11 @@ const coresNumber = os.cpus().length;
 const main = async () => {
   const data = JSON.parse(await readFile(dataPath));
 
-  //console.log('data', data);
   const chunkSize = Math.ceil(data.length / coresNumber);
 
+  const workersNumber = Math.min(coresNumber, data.length / chunkSize);
   const chunks = [];
-  for (let i = 0; i < coresNumber; i++) {
+  for (let i = 0; i < workersNumber; i++) {
     chunks.push(data.slice(i * chunkSize, (i + 1) * chunkSize));
   }
 
